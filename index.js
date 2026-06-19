@@ -32,6 +32,7 @@ async function run() {
      try {
           await client.connect();
           const db = client.db();
+          const lessoncollection = db.collection('lessons')
 
           console.log("MongoDB Connected Successfully!");
 
@@ -62,6 +63,16 @@ async function run() {
           app.get('/', (req, res) => {
                res.send("Wonderlust Server is running correctly!");
           });
+
+          app.post("/api/lessons", async(req, res) => {
+               const lesson = req.body;
+               const newLesson = {
+                    ...lesson,
+                    createdAt: new Date()
+               }
+               const result = await lessoncollection.insertOne(newLesson)
+               res.send(result)
+          })
 
           await client.db("admin").command({ ping: 1 });
           console.log(" Database Pinged Successfully!");
