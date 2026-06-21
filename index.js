@@ -78,6 +78,49 @@ async function run() {
                res.send(result)
           })
 
+          app.get("/api/lessons/:id", async (req, res) => {
+               const id = req.params.id;
+               const query = {
+                    _id: new ObjectId(id)
+               }
+               const result = await lessoncollection.findOne(query)
+               res.send(result)
+          })
+
+          //Like toggle logic
+          app.patch("/api/lessons/:id/like", async (req, res) => {
+                    const id = req.params.id;
+                    const { userId } = req.body;
+
+                    if (!userId) {
+                         return res.status(400).send({ message: "User ID is required" });
+                    }
+
+                    const query = { _id: new ObjectId(id) };
+                    const lesson = await lessoncollection.findOne(query);
+                    const hasLiked = lesson?.likes?.includes(userId);
+
+                    let updateDoc;
+                    if (hasLiked) {
+                         updateDoc = {
+                              $pull: { likes: userId },
+                              $inc: { likesCount: -1 }
+                         };
+                    }
+                    else {
+                         updateDoc = {
+                              $push: { likes: userId },
+                              $inc: { likesCount: 1 }
+                         };
+                    }
+
+                    const result = await lessoncollection.updateOne(query, updateDoc);
+                    res.send({ success: true, isLiked: !hasLiked, result });
+
+          });
+
+     
+
           await client.db("admin").command({ ping: 1 });
           console.log(" Database Pinged Successfully!");
 
