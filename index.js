@@ -148,6 +148,36 @@ async function run() {
                }
           });
 
+          //users apis
+          app.get("/api/users", async (req, res) => {
+               const userCollection = db.collection('user');
+               const result = await userCollection.find().toArray();
+               res.send(result);
+          });
+
+          app.patch("/api/users/:id/role", async (req, res) => {
+               const { id } = req.params;
+               const { role } = req.body;
+               const userCollection = db.collection('user');
+               const query = { _id: new ObjectId(id) };
+               const updateDoc = await userCollection.updateOne(
+                    query, {
+                         $set: {
+                              role: role,
+                              updatedAt: new Date()
+                         }
+               });
+               if (updateDoc.matchedCount === 0) {
+                    return res.status(404).send({ success: false, message: "User not found." });
+               }
+               console.log(`user ${id} role updated successfully to ${role}`);
+
+               res.send(updateDoc);
+
+               })
+
+          
+
           // Lesson APIs
           app.post("/api/lessons", async (req, res) => {
                try {
