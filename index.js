@@ -95,7 +95,6 @@ async function run() {
                     const cleanEmail = subscription.email.trim().toLowerCase();
                     const planId = subscription.planId || "premium";
 
-                    // "user" singular — matches what Better-Auth actually created in Atlas
                     const userCollection = db.collection('user');
 
                     const existingUser = await userCollection.findOne({ email: cleanEmail });
@@ -126,8 +125,6 @@ async function run() {
                     } else {
                          console.log(` User ${cleanEmail} upgraded to premium successfully.`);
                     }
-
-                    // Log subscription record
                     await subscriptionCollection.insertOne({
                          email: cleanEmail,
                          userId: existingUser._id,
@@ -199,6 +196,18 @@ async function run() {
                }
           });
 
+          app.get("/api/lessons/featured", async (req, res) => {
+               try {
+                    const query = { isFeatured: true };
+
+                    const featuredLessons = await lessonCollection.find(query).toArray();
+
+                    res.send(featuredLessons);
+               } catch (error) {
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
+          
           app.get("/api/lessons/:id", async (req, res) => {
                try {
                     const id = req.params.id;
@@ -218,7 +227,6 @@ async function run() {
                myCreatedLessons = await lessonCollection.find({ creatorId }).toArray()
                res.send(myCreatedLessons)
           })
-
 
           //Like Toggle API
           app.patch("/api/lessons/:id/like", async (req, res) => {
@@ -244,6 +252,42 @@ async function run() {
 
                     const result = await lessonCollection.updateOne(query, updateDoc);
                     res.send({ success: true, isLiked: !hasLiked, result });
+               } catch (error) {
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
+
+          //isFeatured true or false
+          app.patch("/api/lessons/:id/featured", async (req, res) => {
+               try {
+                    const id = req.params.id;
+                    const { userId } = req.body;
+
+                    if (!userId) {
+                         return res.status(400).send({ message: "User ID is required" });
+                    }
+
+                    const query = { _id: new ObjectId(id) };
+                    const lesson = await lessonCollection.findOne(query);
+
+                    if (!lesson) {
+                         return res.status(404).send({ success: false, message: "Lesson not found" });
+                    }
+
+                    const currentFeaturedState = lesson?.isFeatured || false;
+
+                    const updateDoc = {
+                         $set: { isFeatured: !currentFeaturedState }
+                    };
+
+                    const result = await lessonCollection.updateOne(query, updateDoc);
+
+                    res.send({
+                         success: true,
+                         isFeatured: !currentFeaturedState,
+                         result
+                    });
+
                } catch (error) {
                     res.status(500).send({ success: false, error: error.message });
                }
