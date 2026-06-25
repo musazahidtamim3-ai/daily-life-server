@@ -34,6 +34,7 @@ async function run() {
           const db = client.db(DB_NAME);
           const lessonCollection = db.collection('lessons');
           const subscriptionCollection = db.collection('subscriptions');
+          const reportCollection = db.collection('reports');
           console.log("MongoDB Connected Successfully!");
 
           //  Better Auth Configuration
@@ -325,6 +326,27 @@ async function run() {
 
                res.send({ success: true, comment });
           })
+
+          app.post("/api/lessons/report", async (req, res) => {
+               try {
+                    const { lessonId, reporterUserId, reporterEmail, reason, createdAt } = req.body;
+
+                    console.log("Report received:", req.body); 
+
+                    await reportCollection.insertOne({
+                         lessonId,
+                         reporterUserId,
+                         reporterEmail,
+                         reason,
+                         createdAt: new Date(createdAt)
+                    });
+
+                    res.send({ success: true });
+               } catch (error) {
+                    console.error("Report error:", error);
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
 
 
           //isFeatured true or false
