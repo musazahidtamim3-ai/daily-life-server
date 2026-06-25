@@ -302,6 +302,30 @@ async function run() {
                }
           });
 
+          app.post("/api/lessons/:id/comments", async (req, res) => {
+               const { id } = req.params;
+               const { userId, userName, userImage, text } = req.body;
+               
+               if(!userId || !text) {
+                    return res.status(400).send({ success: false, message: "User ID and text are required" });
+               }
+
+               const comment = {
+                    userId,
+                    userName,
+                    userImage,
+                    text,
+                    createdAt: new Date()
+               }
+
+               await lessonCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $push: { comments: comment } }
+               );
+
+               res.send({ success: true, comment });
+          })
+
 
           //isFeatured true or false
           app.patch("/api/lessons/:id/featured", async (req, res) => {
