@@ -228,7 +228,6 @@ async function run() {
                res.send(myCreatedLessons)
           })
 
-          //Like Toggle API
           app.patch("/api/lessons/:id/like", async (req, res) => {
                try {
                     const id = req.params.id;
@@ -237,22 +236,76 @@ async function run() {
                     if (!userId) {
                          return res.status(400).send({ message: "User ID is required" });
                     }
-                    const query = { _id: new ObjectId(id) };
-                    const lesson = await lessonCollection.findOne(query);
 
-                    if (!lesson) {
-                         return res.status(404).send({ success: false, message: "Lesson not found" });
+                    const alreadyLiked = await lessonCollection.findOne({
+                         _id: new ObjectId(id),
+                         likes: userId 
+                    });
+
+                    const updateDoc = alreadyLiked
+                         ? { $pull: { likes: userId } }  
+                         : { $push: { likes: userId } };
+
+                    await lessonCollection.updateOne({ _id: new ObjectId(id) }, updateDoc);
+
+                    const updated = await lessonCollection.findOne(
+                         { _id: new ObjectId(id) },
+                         { projection: { likes: 1 } }
+                    );
+
+                    res.send({
+                         success: true,
+                         isLiked: !alreadyLiked,
+                         likesCount: updated.likes?.length || 0 
+                    });
+
+               } catch (error) {
+                    console.error("Backend Error:", error);
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
+
+          app.patch("/api/lessons/:id/save", async (req, res) => {
+               try {
+                    const id = req.params.id;
+                    const { userId } = req.body;
+
+                    if (!userId) {
+                         return res.status(400).send({ message: "User ID is required" });
                     }
 
-                    const hasLiked = lesson?.likes?.includes(userId);
+                    const query = { _id: new ObjectId(id) };
+                    const alreadySaved = await lessonCollection.findOne({
+                         _id: new ObjectId(id),
+                    });
 
-                    const updateDoc = hasLiked
-                         ? { $pull: { likes: userId }, $inc: { likesCount: -1 } }
-                         : { $push: { likes: userId }, $inc: { likesCount: 1 } };
+                    let updateDoc;
+                    let finalIsSaved;
+
+                    if (alreadySaved) {
+                         updateDoc = {
+                              $pull: { savees: userId },
+                              $inc: { savesCount: -1 }
+                         };
+                         finalIsSaved = false;
+                    } else {
+                         updateDoc = {
+                              $push: { saves: userId },
+                              $inc: { savesCount: 1 }
+                         };
+                         finalIsSaved = true; 
+                    }
 
                     const result = await lessonCollection.updateOne(query, updateDoc);
-                    res.send({ success: true, isLiked: !hasLiked, result });
+
+                    res.send({
+                         success: true,
+                         isSaved: finalIsSaved, 
+                         result
+                    });
+
                } catch (error) {
+                    console.error("Backend Error:", error);
                     res.status(500).send({ success: false, error: error.message });
                }
           });
