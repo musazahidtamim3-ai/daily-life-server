@@ -274,34 +274,26 @@ async function run() {
                          return res.status(400).send({ message: "User ID is required" });
                     }
 
-                    const query = { _id: new ObjectId(id) };
                     const alreadySaved = await lessonCollection.findOne({
                          _id: new ObjectId(id),
+                         saves: userId
                     });
 
-                    let updateDoc;
-                    let finalIsSaved;
+                    const updateDoc = alreadySaved
+                         ? { $pull: { saves: userId } }
+                         : { $push: { saves: userId } };
 
-                    if (alreadySaved) {
-                         updateDoc = {
-                              $pull: { savees: userId },
-                              $inc: { savesCount: -1 }
-                         };
-                         finalIsSaved = false;
-                    } else {
-                         updateDoc = {
-                              $push: { saves: userId },
-                              $inc: { savesCount: 1 }
-                         };
-                         finalIsSaved = true; 
-                    }
+                    await lessonCollection.updateOne({ _id: new ObjectId(id) }, updateDoc);
 
-                    const result = await lessonCollection.updateOne(query, updateDoc);
+                    const updated = await lessonCollection.findOne(
+                         { _id: new ObjectId(id) },
+                         { projection: { saves: 1 } }
+                    );
 
                     res.send({
                          success: true,
-                         isSaved: finalIsSaved, 
-                         result
+                         isSaved: !alreadySaved,
+                         savesCount: updated.saves?.length || 0
                     });
 
                } catch (error) {
@@ -309,6 +301,7 @@ async function run() {
                     res.status(500).send({ success: false, error: error.message });
                }
           });
+
 
           //isFeatured true or false
           app.patch("/api/lessons/:id/featured", async (req, res) => {
