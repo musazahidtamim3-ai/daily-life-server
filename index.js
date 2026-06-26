@@ -211,21 +211,43 @@ async function run() {
 
           app.delete("/api/lessons/:id", async (req, res) => {
                try {
-                    const { id } = req.params;
-
+                    const { id } = req.params; 
                     if (!ObjectId.isValid(id)) {
                          return res.status(400).send({ success: false, error: "Invalid ID format" });
                     }
 
-                    const query = { _id: new ObjectId(id) };
-                    const result = await lessonCollection.deleteOne(query);
+                    const lessonQuery = { _id: new ObjectId(id) };
+                    const lessonResult = await lessonCollection.deleteOne(lessonQuery);
+
+                    const reportQuery = { lessonId: id };
+                    await reportCollection.deleteMany(reportQuery);
+
+                    res.send({
+                         success: true,
+                         deletedCount: lessonResult.deletedCount
+                    });
+
+               } catch (error) {
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
+
+          app.delete("/api/lessons/report/:id", async (req, res) => {
+               try {
+                    const { id } = req.params;
+
+                    if (!id) {
+                         return res.status(400).send({ success: false, error: "Lesson ID is required" });
+                    }
+                    const query = { lessonId: id };
+
+                    const result = await reportCollection.deleteMany(query);
 
                     res.send({ success: true, deletedCount: result.deletedCount });
                } catch (error) {
                     res.status(500).send({ success: false, error: error.message });
                }
           });
-
 
           app.post("/api/lessons/report", async (req, res) => {
                try {
