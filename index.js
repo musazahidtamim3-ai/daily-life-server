@@ -208,6 +208,37 @@ async function run() {
                     res.status(500).send({ success: false, error: error.message });
                }
           });
+
+          app.post("/api/lessons/report", async (req, res) => {
+               try {
+                    const { lessonId, lessonTitle, lessonImageUrl, reporterUserId, reporterEmail, reason, createdAt } = req.body;
+
+                    console.log("Report received:", req.body);
+                    if (!ObjectId.isValid(lessonId)) {
+                         return res.status(400).send({ success: false, error: "Invalid lessonId format" });
+                    }
+
+                    await reportCollection.insertOne({
+                         lessonId,
+                         lessonTitle,
+                         lessonImageUrl,
+                         reporterUserId,
+                         reporterEmail,
+                         reason,
+                         createdAt: new Date(createdAt)
+                    });
+
+                    res.send({ success: true });
+               } catch (error) {
+                    console.error("Report error:", error);
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
+
+          app.get("/api/lessons/report", async (req, res) => {
+               const result = await reportCollection.find().toArray();
+               res.send(result);
+          });
           
           app.get("/api/lessons/:id", async (req, res) => {
                try {
@@ -326,28 +357,6 @@ async function run() {
 
                res.send({ success: true, comment });
           })
-
-          app.post("/api/lessons/report", async (req, res) => {
-               try {
-                    const { lessonId, reporterUserId, reporterEmail, reason, createdAt } = req.body;
-
-                    console.log("Report received:", req.body); 
-
-                    await reportCollection.insertOne({
-                         lessonId,
-                         reporterUserId,
-                         reporterEmail,
-                         reason,
-                         createdAt: new Date(createdAt)
-                    });
-
-                    res.send({ success: true });
-               } catch (error) {
-                    console.error("Report error:", error);
-                    res.status(500).send({ success: false, error: error.message });
-               }
-          });
-
 
           //isFeatured true or false
           app.patch("/api/lessons/:id/featured", async (req, res) => {
