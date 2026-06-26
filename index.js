@@ -197,6 +197,40 @@ async function run() {
                }
           });
 
+          app.get("/api/top-contributors", async (req, res) => {
+               try {
+                    const topContributors = await lessonCollection.aggregate([
+                         {
+                              $group: {
+                                   _id: "$creatorId",
+                                   totalLessons: { $sum: 1 },
+                                   name: { $first: "$creatorName" },
+                                   image: { $first: "$creatorImage" } 
+                              }
+                         },
+                         {
+                              $sort: { totalLessons: -1 }
+                         },
+                         {
+                              $limit: 2
+                         },
+                         {
+                              $project: {
+                                   _id: 0,
+                                   creatorId: "$_id",
+                                   totalLessons: 1,
+                                   name: 1,
+                                   image: 1
+                              }
+                         }
+                    ]).toArray();
+
+                    res.send({ success: true, data: topContributors });
+               } catch (error) {
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
+
           app.get("/api/lessons/featured", async (req, res) => {
                try {
                     const query = { isFeatured: true };
