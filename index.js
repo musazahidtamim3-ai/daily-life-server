@@ -304,6 +304,27 @@ async function run() {
                }
           });
 
+          app.patch("/api/lessons/:id", async (req, res) => {
+               try {
+                    const { id } = req.params;
+                    const updates = req.body;
+
+                    const result = await lessonCollection.updateOne(
+                         { _id: new ObjectId(id) },
+                         { $set: updates }
+                    );
+
+                    if (result.matchedCount === 0) {
+                         return res.status(404).send({ success: false, error: "Lesson not found" });
+                    }
+
+                    res.send({ success: true, message: "Lesson updated successfully" });
+
+               } catch (error) {
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
+
 
           app.delete("/api/lessons/report/:id", async (req, res) => {
                try {
@@ -351,6 +372,35 @@ async function run() {
           app.get("/api/lessons/report", async (req, res) => {
                const result = await reportCollection.find().toArray();
                res.send(result);
+          });
+
+          app.get("/api/lessons/most-saved", async (req, res) => {
+               try {
+                    const result = await lessonCollection.aggregate([
+                         { $addFields: { savesCount: { $size: { $ifNull: ["$saves", []] } } } },
+                         { $sort: { savesCount: -1 } },
+                         { $limit: 5 }
+                    ]).toArray();
+
+                    res.send({ success: true, data: result });
+               } catch (error) {
+                    res.status(500).send({ success: false, error: error.message });
+               }
+          });
+
+          app.get("/api/lessons/saved/:userId", async (req, res) => {
+               try {
+                    const { userId } = req.params;
+
+                    const result = await lessonCollection.find({
+                         saves: userId
+                    }).toArray();
+
+                    res.send({ success: true, data: result });
+
+               } catch (error) {
+                    res.status(500).send({ success: false, error: error.message });
+               }
           });
           
           app.get("/api/lessons/:id", async (req, res) => {
@@ -446,6 +496,8 @@ async function run() {
                     res.status(500).send({ success: false, error: error.message });
                }
           });
+
+          
 
           app.post("/api/lessons/:id/comments", async (req, res) => {
                const { id } = req.params;
