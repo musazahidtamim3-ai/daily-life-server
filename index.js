@@ -190,15 +190,34 @@ async function run() {
                try {
                     const page = parseInt(req.query.page) || 1;
                     const limit = parseInt(req.query.limit) || 4;
-
                     const skipAmount = (page - 1) * limit;
 
-                    const result = await lessonCollection.find()
+                    const searchKeyword = req.query.search || "";
+                    const categoryFilter = req.query.category || "";
+                    const emotionalTones = req.query.emotionalTone || "";
+
+                    let query = {};
+                    if (searchKeyword) {
+                         query = {
+                              $or: [
+                                   { title: { $regex: searchKeyword, $options: "i" } },
+                                   { category: { $regex: searchKeyword, $options: "i" } }
+                              ]
+                         };
+                    }
+                    if (categoryFilter) {
+                         query.category = categoryFilter; 
+                    }
+                    if (emotionalTones) {
+                         query.emotionalTone = emotionalTones;
+                    }
+
+                    const result = await lessonCollection.find(query)
                          .skip(skipAmount)
                          .limit(limit)
                          .toArray();
 
-                    const totalLessons = await lessonCollection.countDocuments();
+                    const totalLessons = await lessonCollection.countDocuments(query);
                     const totalPages = Math.ceil(totalLessons / limit);
 
                     res.send({
