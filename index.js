@@ -174,8 +174,6 @@ async function run() {
 
                })
 
-          
-
           // Lesson APIs
           app.post("/api/lessons", async (req, res) => {
                try {
@@ -190,8 +188,29 @@ async function run() {
 
           app.get("/api/lessons", async (req, res) => {
                try {
-                    const result = await lessonCollection.find().toArray();
-                    res.send(result);
+                    const page = parseInt(req.query.page) || 1;
+                    const limit = parseInt(req.query.limit) || 4;
+
+                    const skipAmount = (page - 1) * limit;
+
+                    const result = await lessonCollection.find()
+                         .skip(skipAmount)
+                         .limit(limit)
+                         .toArray();
+
+                    const totalLessons = await lessonCollection.countDocuments();
+                    const totalPages = Math.ceil(totalLessons / limit);
+
+                    res.send({
+                         success: true,
+                         data: result,
+                         meta: {
+                              currentPage: page,
+                              totalPages: totalPages,
+                              totalLessons: totalLessons
+                         }
+                    });
+
                } catch (error) {
                     res.status(500).send({ success: false, error: error.message });
                }
@@ -265,6 +284,7 @@ async function run() {
                     res.status(500).send({ success: false, error: error.message });
                }
           });
+
 
           app.delete("/api/lessons/report/:id", async (req, res) => {
                try {
