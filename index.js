@@ -4,10 +4,6 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
-const { betterAuth } = require("better-auth");
-const { mongodbAdapter } = require("better-auth/adapters/mongodb");
-const { toNodeHandler } = require("better-auth/node");
-
 dotenv.config();
 
 const uri = process.env.MONGODB_URI;
@@ -28,44 +24,44 @@ const client = new MongoClient(uri, {
 });
 
 let db, lessonCollection, subscriptionCollection, reportCollection;
+let auth; // Global auth variable
 
-// 1. Better Auth Configuration (Initialized Globally)
-const auth = betterAuth({
-     baseURL: "https://daily-life-server.vercel.app/",
-     trustedOrigins: ["https://daily-life-client.vercel.app/"],
-     advanced: { crossOrigin: true },
-     emailAndPassword: { enabled: true },
-     database: mongodbAdapter({
-          // We pass a function that returns the db instance once connected
-          getDb: () => client.db(DB_NAME),
-          modelMapping: {
-               user: "user",
-               session: "session",
-               account: "account",
-               verification: "verification"
-          }
-     }),
-     user: {
-          additionalFields: {
-               role: { type: "string", defaultValue: "user" },
-               isPremium: { type: "boolean", defaultValue: false }
-          }
-     },
-     socialProviders: {
-          google: {
-               clientId: process.env.GOOGLE_CLIENT_ID,
-               clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+// Dynamic Import for Better-Auth to fix ERR_REQUIRE_ESM
+async function initBetterAuth() {
+     const { betterAuth } = await import("better-auth");
+     const { mongodbAdapter } = await import("better-auth/adapters/mongodb");
+
+     auth = betterAuth({
+          baseURL: "https://daily-life-server.vercel.app/",
+          trustedOrigins: ["https://daily-life-client.vercel.app/"],
+          advanced: { crossOrigin: true },
+          emailAndPassword: { enabled: true },
+          database: mongodbAdapter({
+               getDb: () => client.db(DB_NAME),
+               modelMapping: {
+                    user: "user",
+                    session: "session",
+                    account: "account",
+                    verification: "verification"
+               }
+          }),
+          user: {
+               additionalFields: {
+                    role: { type: "string", defaultValue: "user" },
+                    isPremium: { type: "boolean", defaultValue: false }
+               }
           },
-     },
-});
+          socialProviders: {
+               google: {
+                    clientId: process.env.GOOGLE_CLIENT_ID,
+                    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+               },
+          },
+     });
+}
 
-// Better Auth Router mount
-const authRouter = express.Router();
-authRouter.use(toNodeHandler(auth));
-app.use("/api/auth", authRouter);
-
-// 2. Database Connection Middleware
-async function connectDB() {
+// 2. Database Connection and Auth Initialization Middleware
+async function initializeServer() {
      if (!db) {
           await client.connect();
           db = client.db(DB_NAME);
@@ -74,15 +70,31 @@ async function connectDB() {
           reportCollection = db.collection('reports');
           console.log("MongoDB Connected Successfully!");
      }
+     if (!auth) {
+          await initBetterAuth();
+          console.log("Better-Auth Initialized Successfully!");
+     }
 }
 
+// Global server initializer middleware
 app.use(async (req, res, next) => {
      try {
-          await connectDB();
+          await initializeServer();
           next();
      } catch (err) {
-          console.error("Database connection error:", err);
-          res.status(500).send({ success: false, error: "Database connection failed" });
+          console.error("Initialization error:", err);
+          res.status(500).send({ success: false, error: "Server initialization failed" });
+     }
+});
+
+// Better Auth Route Handler
+app.all("/api/auth/*", async (req, res) => {
+     try {
+          await initializeServer();
+          const { toNodeHandler } = await import("better-auth/node");
+          return toNodeHandler(auth)(req, res);
+     } catch (error) {
+          res.status(500).send({ error: error.message });
      }
 });
 
@@ -453,9 +465,6 @@ app.patch("/api/lessons/:id/featured", async (req, res) => {
           res.status(500).send({ success: false, error: error.message });
      }
 });
-// --- APIS END ---
-
-// Export for Vercel
 module.exports = app;
 
 if (process.env.NODE_ENV !== 'production') {
