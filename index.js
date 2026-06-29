@@ -30,7 +30,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
      try {
-          await client.connect();
+          // await client.connect();
           const db = client.db(DB_NAME);
           const lessonCollection = db.collection('lessons');
           const subscriptionCollection = db.collection('subscriptions');
@@ -723,7 +723,7 @@ async function run() {
                     res.status(500).send({ success: false, error: error.message });
                }
           });
-          await client.db("admin").command({ ping: 1 });
+          // await client.db("admin").command({ ping: 1 });
           console.log("Database Pinged Successfully!");
 
      } catch (err) {
