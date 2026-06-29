@@ -13,7 +13,6 @@ dotenv.config();
 const uri = process.env.MONGODB_URI;
 const DB_NAME = "daily_life_db";
 
-// CORS Fix for both local and production
 app.use(cors({
      origin: ["http://localhost:3000", "https://daily-life-client.vercel.app"],
      credentials: true
@@ -28,9 +27,44 @@ const client = new MongoClient(uri, {
      }
 });
 
-let db, lessonCollection, subscriptionCollection, reportCollection, auth;
+let db, lessonCollection, subscriptionCollection, reportCollection;
 
-// Database connection helper for Serverless
+// 1. Better Auth Configuration (Initialized Globally)
+const auth = betterAuth({
+     baseURL: "https://daily-life-server.vercel.app/",
+     trustedOrigins: ["https://daily-life-client.vercel.app/"],
+     advanced: { crossOrigin: true },
+     emailAndPassword: { enabled: true },
+     database: mongodbAdapter({
+          // We pass a function that returns the db instance once connected
+          getDb: () => client.db(DB_NAME),
+          modelMapping: {
+               user: "user",
+               session: "session",
+               account: "account",
+               verification: "verification"
+          }
+     }),
+     user: {
+          additionalFields: {
+               role: { type: "string", defaultValue: "user" },
+               isPremium: { type: "boolean", defaultValue: false }
+          }
+     },
+     socialProviders: {
+          google: {
+               clientId: process.env.GOOGLE_CLIENT_ID,
+               clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          },
+     },
+});
+
+// Better Auth Router mount
+const authRouter = express.Router();
+authRouter.use(toNodeHandler(auth));
+app.use("/api/auth", authRouter);
+
+// 2. Database Connection Middleware
 async function connectDB() {
      if (!db) {
           await client.connect();
@@ -38,54 +72,21 @@ async function connectDB() {
           lessonCollection = db.collection('lessons');
           subscriptionCollection = db.collection('subscriptions');
           reportCollection = db.collection('reports');
-
-          // Better Auth Initialization
-          auth = betterAuth({
-               baseURL: "https://daily-life-server.vercel.app/",
-               trustedOrigins: ["https://daily-life-client.vercel.app/"],
-               advanced: { crossOrigin: true },
-               emailAndPassword: { enabled: true },
-               database: mongodbAdapter(db, {
-                    client,
-                    modelMapping: {
-                         user: "user",
-                         session: "session",
-                         account: "account",
-                         verification: "verification"
-                    }
-               }),
-               user: {
-                    additionalFields: {
-                         role: { type: "string", defaultValue: "user" },
-                         isPremium: { type: "boolean", defaultValue: false }
-                    }
-               },
-               socialProviders: {
-                    google: {
-                         clientId: process.env.GOOGLE_CLIENT_ID,
-                         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-                    },
-               },
-          });
-
-          // Auth Route Middleware inside connection
-          const authRouter = express.Router();
-          authRouter.use(toNodeHandler(auth));
-          app.use("/api/auth", authRouter);
+          console.log("MongoDB Connected Successfully!");
      }
 }
 
-// Middleware to ensure DB is connected before handling requests
 app.use(async (req, res, next) => {
      try {
           await connectDB();
           next();
      } catch (err) {
+          console.error("Database connection error:", err);
           res.status(500).send({ success: false, error: "Database connection failed" });
      }
 });
 
-// --- YOUR APIS START HERE ---
+// --- APIS START ---
 app.get('/', (req, res) => {
      res.send("Daily Life Server is running correctly!");
 });
@@ -129,7 +130,7 @@ app.post("/api/subscriptions", async (req, res) => {
      }
 });
 
-// User APIs
+// Users API
 app.get("/api/users", async (req, res) => {
      const userCollection = db.collection('user');
      const result = await userCollection.find().toArray();
@@ -150,7 +151,7 @@ app.patch("/api/users/:id/role", async (req, res) => {
      res.send(updateDoc);
 });
 
-// Lesson APIs
+// Lessons API
 app.post("/api/lessons", async (req, res) => {
      try {
           const lesson = req.body;
@@ -327,7 +328,7 @@ app.patch('/api/lessons/:id/status', async (req, res) => {
           if (visibility !== undefined) updateFields.visibility = visibility;
           if (access !== undefined) updateFields.accessLevel = access;
 
-          const result = await lessonCollection.updateOne({ _id: new ObjectId(id) }, { $set: updateFields });
+          await lessonCollection.updateOne({ _id: new ObjectId(id) }, { $set: updateFields });
           res.json({ success: true, message: "Status updated successfully", updatedFields });
      } catch (error) {
           res.status(500).json({ success: false, error: error.message });
@@ -446,15 +447,17 @@ app.patch("/api/lessons/:id/featured", async (req, res) => {
           const lesson = await lessonCollection.findOne(query);
 
           const nextFeaturedState = typeof isFeatured === 'boolean' ? isFeatured : !(lesson?.isFeatured || false);
-          const result = await lessonCollection.updateOne(query, { $set: { isFeatured: nextFeaturedState } });
-          res.send({ success: true, isFeatured: nextFeaturedState, result });
+          await lessonCollection.updateOne(query, { $set: { isFeatured: nextFeaturedState } });
+          res.send({ success: true, isFeatured: nextFeaturedState });
      } catch (error) {
           res.status(500).send({ success: false, error: error.message });
      }
 });
+// --- APIS END ---
+
+// Export for Vercel
 module.exports = app;
 
-// Only listen when running locally
 if (process.env.NODE_ENV !== 'production') {
      const PORT = process.env.PORT || 5000;
      app.listen(PORT, () => {
